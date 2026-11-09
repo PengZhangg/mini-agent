@@ -1,4 +1,8 @@
 import OpenAI from 'openai';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+} from 'openai/resources/chat/completions';
 import { readFile } from 'fs/promises';
 
 async function main() {
@@ -19,59 +23,75 @@ async function main() {
     baseURL: baseURL,
   });
 
-  const response = await client.chat.completions.create({
-    model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-    messages: [{ role: 'user', content: prompt }],
-    tools: [
-      {
-        type: 'function',
-        function: {
-          name: 'Read',
-          description: 'Read and return the contents of a file',
-          parameters: {
-            type: 'object',
-            properties: {
-              file_path: {
-                type: 'string',
-                description: 'The path to the file to read',
-              },
+  const toolList: ChatCompletionTool[] = [
+    {
+      type: 'function',
+      function: {
+        name: 'Read',
+        description: 'Read and return the contents of a file',
+        parameters: {
+          type: 'object',
+          properties: {
+            file_path: {
+              type: 'string',
+              description: 'The path to the file to read',
             },
-            required: ['file_path'],
           },
+          required: ['file_path'],
         },
       },
-    ],
-  });
+    },
+  ];
 
-  if (!response.choices || response.choices.length === 0) {
-    throw new Error('no choices in response');
-  }
+  const messageLog: ChatCompletionMessageParam[] = [
+    { role: 'user', content: prompt },
+  ];
 
-  const message = response.choices[0].message;
+  while (true) {
+    const response = await client.chat.completions.create({
+      model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+      messages: messageLog,
+      tools: toolList,
+    });
 
-  if (!message.tool_calls?.length) {
-    console.log(message.content);
-    return;
-  }
+    if (!response.choices || response.choices.length === 0) {
+      throw new Error('no choices in response');
+    }
 
-  const toolCall = message.tool_calls[0];
+    const message = response.choices[0].message;
+    const toolCalls = message.tool_calls;
 
-  if (toolCall.type !== 'function') {
-    return;
-  }
+    messageLog.push(message);
 
-  const functionName = toolCall.function.name;
-  const functionArguments = JSON.parse(toolCall.function.arguments);
-
-  if (functionName === 'Read') {
-    const filePath = functionArguments.file_path;
-
-    try {
-      const data = await readFile(filePath, 'utf8');
-      process.stdout.write(data);
-    } catch (err) {
-      console.error('Error reading file:', err);
+    if (!toolCalls?.length) {
+      console.log(message.content);
       return;
+    }
+
+    for (const call of toolCalls) {
+      if (call.type !== 'function') continue;
+      const functionName = call.function.name;
+      const functionArguments = JSON.parse(call.function.arguments);
+
+      let result: string = 'unknown tool';
+
+      if (functionName === 'Read') {
+        const filePath = functionArguments.file_path;
+
+        try {
+          const data = await readFile(filePath, 'utf8');
+          result = data;
+        } catch (err) {
+          result = String(err);
+          console.error('Error reading file:', err);
+        }
+      }
+
+      messageLog.push({
+        role: 'tool',
+        tool_call_id: call.id,
+        content: result,
+      });
     }
   }
 }
