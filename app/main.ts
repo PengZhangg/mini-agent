@@ -4,6 +4,7 @@ import type {
   ChatCompletionTool,
 } from 'openai/resources/chat/completions';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -96,26 +97,40 @@ async function main() {
 
       let result: string = 'unknown tool';
 
-      if (functionName === 'Read') {
-        const filePath = functionArguments.file_path;
+      switch (functionName) {
+        case 'Read': {
+          const filePath = functionArguments.file_path;
 
-        try {
-          const data = await fs.readFile(filePath, 'utf8');
-          result = data;
-        } catch (err) {
-          result = String(err);
-          console.error('Error reading file:', err);
+          try {
+            const data = await fs.readFile(filePath, 'utf8');
+            result = data;
+          } catch (err) {
+            result = String(err);
+            console.error('Error reading file:', err);
+          }
+          break;
         }
-      }
+        case 'Write': {
+          const filePath = functionArguments.file_path;
+          const content = functionArguments.content;
 
-      if (functionName === 'Write') {
-        const filePath = functionArguments.file_path;
-        const content = functionArguments.content;
+          if (typeof content !== 'string') {
+            result = 'Error: content must be a string';
+            break;
+          }
 
-        try {
-          await fs.writeFile(filePath, content);
-        } catch (err) {
-          console.error('Error writing file:', err);
+          try {
+            await fs.mkdir(path.dirname(filePath), { recursive: true });
+            await fs.writeFile(filePath, content);
+            result = `Wrote to ${filePath}`;
+          } catch (err) {
+            result = String(err);
+            console.error('Error writing file:', err);
+          }
+          break;
+        }
+        default: {
+          result = `Unknown tool: ${functionName}`;
         }
       }
 
