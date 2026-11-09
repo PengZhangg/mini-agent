@@ -5,6 +5,10 @@ import type {
 } from 'openai/resources/chat/completions';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -58,6 +62,23 @@ async function main() {
             content: {
               type: 'string',
               description: 'The content to write to the file',
+            },
+          },
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'Bash',
+        description: 'Execute a shell command',
+        parameters: {
+          type: 'object',
+          required: ['command'],
+          properties: {
+            command: {
+              type: 'string',
+              description: 'The command to execute',
             },
           },
         },
@@ -145,6 +166,24 @@ async function main() {
           } catch (err) {
             result = String(err);
             console.error('Error writing file:', err);
+          }
+          break;
+        }
+        case 'Bash': {
+          const command = functionArguments.command;
+
+          try {
+            const { stdout, stderr } = await execAsync(command, {
+              timeout: 30_000,
+              maxBuffer: 10 * 1024 * 1024,
+            });
+            result = stdout + stderr || 'Done';
+          } catch (err: any) {
+            result = `Exit code ${err.code ?? 'unknown'}${err.killed ? ' (timed out)' : ''}\n${err.stdout ?? ''}${err.stderr ?? ''}`;
+          }
+
+          if (result.length > 20_000) {
+            result = result.slice(0, 20_000) + '\n... (output truncated)';
           }
           break;
         }
