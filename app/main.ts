@@ -3,7 +3,6 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from 'openai/resources/chat/completions';
-import { readFile } from 'fs/promises';
 import fs from 'node:fs/promises';
 
 async function main() {
@@ -101,7 +100,7 @@ async function main() {
         const filePath = functionArguments.file_path;
 
         try {
-          const data = await readFile(filePath, 'utf8');
+          const data = await fs.readFile(filePath, 'utf8');
           result = data;
         } catch (err) {
           result = String(err);
