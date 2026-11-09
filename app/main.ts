@@ -4,6 +4,7 @@ import type {
   ChatCompletionTool,
 } from 'openai/resources/chat/completions';
 import { readFile } from 'fs/promises';
+import fs from 'node:fs/promises';
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -38,6 +39,27 @@ async function main() {
             },
           },
           required: ['file_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'Write',
+        description: 'Write content to a file',
+        parameters: {
+          type: 'object',
+          required: ['file_path', 'content'],
+          properties: {
+            file_path: {
+              type: 'string',
+              description: 'The path of the file to write to',
+            },
+            content: {
+              type: 'string',
+              description: 'The content to write to the file',
+            },
+          },
         },
       },
     },
@@ -84,6 +106,17 @@ async function main() {
         } catch (err) {
           result = String(err);
           console.error('Error reading file:', err);
+        }
+      }
+
+      if (functionName === 'Write') {
+        const filePath = functionArguments.file_path;
+        const content = functionArguments.content;
+
+        try {
+          await fs.writeFile(filePath, content);
+        } catch (err) {
+          console.error('Error writing file:', err);
         }
       }
 
