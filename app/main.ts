@@ -91,9 +91,28 @@ async function main() {
     }
 
     for (const call of toolCalls) {
-      if (call.type !== 'function') continue;
+      if (call.type !== 'function') {
+        messageLog.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: 'Error: unsupported tool call type',
+        });
+        continue;
+      }
+
       const functionName = call.function.name;
-      const functionArguments = JSON.parse(call.function.arguments);
+      let functionArguments;
+
+      try {
+        functionArguments = JSON.parse(call.function.arguments);
+      } catch {
+        messageLog.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: `Error: invalid JSON arguments: ${call.function.arguments}`,
+        });
+        continue;
+      }
 
       let result: string = 'unknown tool';
 
