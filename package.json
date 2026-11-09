@@ -1,0 +1,16 @@
+{
+  "name": "mini-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env app/main.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "openai": "^6.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
