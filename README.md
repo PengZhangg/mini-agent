@@ -1,12 +1,19 @@
 # mini-agent
 
-A minimal coding agent in TypeScript.
+A basic coding agent written in TypeScript.
 
 ## Setup
 
+Create a `.env` file in the project root:
+
+```
+OPENROUTER_API_KEY=your-key-here
+```
+
+Install dependencies:
+
 ```sh
 pnpm install
-export OPENROUTER_API_KEY=...
 ```
 
 ## Run
