@@ -1,20 +1,14 @@
 import OpenAI from 'openai';
-import type {
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
-} from 'openai/resources/chat/completions';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const execAsync = promisify(exec);
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { tools } from './tools/index.ts';
 
 async function main() {
   const [, , flag, prompt] = process.argv;
   const apiKey = process.env.OPENROUTER_API_KEY;
+  const model =
+    process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free';
   const baseURL =
-    process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1';
+    process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
 
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY not found');
@@ -28,73 +22,15 @@ async function main() {
     baseURL: baseURL,
   });
 
-  const toolList: ChatCompletionTool[] = [
-    {
-      type: 'function',
-      function: {
-        name: 'Read',
-        description: 'Read and return the contents of a file',
-        parameters: {
-          type: 'object',
-          properties: {
-            file_path: {
-              type: 'string',
-              description: 'The path to the file to read',
-            },
-          },
-          required: ['file_path'],
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'Write',
-        description: 'Write content to a file',
-        parameters: {
-          type: 'object',
-          required: ['file_path', 'content'],
-          properties: {
-            file_path: {
-              type: 'string',
-              description: 'The path of the file to write to',
-            },
-            content: {
-              type: 'string',
-              description: 'The content to write to the file',
-            },
-          },
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'Bash',
-        description: 'Execute a shell command',
-        parameters: {
-          type: 'object',
-          required: ['command'],
-          properties: {
-            command: {
-              type: 'string',
-              description: 'The command to execute',
-            },
-          },
-        },
-      },
-    },
-  ];
-
   const messageLog: ChatCompletionMessageParam[] = [
     { role: 'user', content: prompt },
   ];
 
   while (true) {
     const response = await client.chat.completions.create({
-      model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+      model: model,
       messages: messageLog,
-      tools: toolList,
+      tools: tools.map((t) => t.definition),
     });
 
     if (!response.choices || response.choices.length === 0) {
@@ -135,62 +71,12 @@ async function main() {
         continue;
       }
 
-      let result: string = 'unknown tool';
-
-      switch (functionName) {
-        case 'Read': {
-          const filePath = functionArguments.file_path;
-
-          try {
-            const data = await fs.readFile(filePath, 'utf8');
-            result = data;
-          } catch (err) {
-            result = String(err);
-            console.error('Error reading file:', err);
-          }
-          break;
-        }
-        case 'Write': {
-          const filePath = functionArguments.file_path;
-          const content = functionArguments.content;
-
-          if (typeof content !== 'string') {
-            result = 'Error: content must be a string';
-            break;
-          }
-
-          try {
-            await fs.mkdir(path.dirname(filePath), { recursive: true });
-            await fs.writeFile(filePath, content);
-            result = `Wrote to ${filePath}`;
-          } catch (err) {
-            result = String(err);
-            console.error('Error writing file:', err);
-          }
-          break;
-        }
-        case 'Bash': {
-          const command = functionArguments.command;
-
-          try {
-            const { stdout, stderr } = await execAsync(command, {
-              timeout: 30_000,
-              maxBuffer: 10 * 1024 * 1024,
-            });
-            result = stdout + stderr || 'Done';
-          } catch (err: any) {
-            result = `Exit code ${err.code ?? 'unknown'}${err.killed ? ' (timed out)' : ''}\n${err.stdout ?? ''}${err.stderr ?? ''}`;
-          }
-
-          if (result.length > 20_000) {
-            result = result.slice(0, 20_000) + '\n... (output truncated)';
-          }
-          break;
-        }
-        default: {
-          result = `Unknown tool: ${functionName}`;
-        }
-      }
+      const tool = tools.find(
+        (t) => t.definition.function.name === functionName,
+      );
+      const result = tool
+        ? await tool.run(functionArguments)
+        : `Unknown tool: ${functionName}`;
 
       messageLog.push({
         role: 'tool',
