@@ -43,6 +43,21 @@ Requires Node 22.18+, which runs TypeScript directly without a build step.
 
 > **Warning:** the agent runs shell commands and writes files without asking first. Run it in a directory you don't mind it changing.
 
+## Skills
+
+Add skills in `.agents/skills/<name>/SKILL.md`:
+
+```md
+---
+name: apple
+description: Deploys the apple service to production.
+---
+
+Run the deploy script and report the version that was deployed.
+```
+
+The name and description of each skill go in the system prompt. The body isn't used yet.
+
 ## Project structure
 
 ```
@@ -54,6 +69,11 @@ app/
     read.ts
     write.ts
     bash.ts
+  skills/
+    loadSkills.ts
+    parseSkill.ts
+    buildSkillsPrompt.ts
+    types.ts
 ```
 
 ## Adding a tool
