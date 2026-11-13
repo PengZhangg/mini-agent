@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { tools } from './tools/index.ts';
+import { loadSkills } from './skills/loadSkills.ts';
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -22,7 +23,16 @@ async function main() {
     baseURL: baseURL,
   });
 
+  const skills = await loadSkills();
+
+  const skillList = skills
+    .map((s) => `- ${s.frontmatter.name}: ${s.frontmatter.description}`)
+    .join('\n');
+
+  const systemPrompt = `You have access to the following skills:\n\n${skillList}`;
+
   const messageLog: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: prompt },
   ];
 

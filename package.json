@@ -7,7 +7,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "openai": "^6.16.0"
+    "openai": "^6.16.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
