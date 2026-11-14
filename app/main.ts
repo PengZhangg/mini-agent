@@ -3,6 +3,7 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
 } from 'openai/resources/chat/completions';
+import type { ParsedSkill } from './skills/types.ts';
 import { tools } from './tools/index.ts';
 import { buildSkillsPrompt } from './skills/buildSkillsPrompt.ts';
 import { loadSkills } from './skills/loadSkills.ts';
@@ -46,6 +47,19 @@ async function runToolCall(
   return tool.run(functionArguments);
 }
 
+function resolveSlashCommand(prompt: string, skills: ParsedSkill[]): string {
+  const trimmedPrompt = prompt.trim();
+
+  if (!trimmedPrompt.startsWith('/')) return prompt;
+
+  const skillName = trimmedPrompt.split(/\s+/)[0].slice(1);
+  const skill = skills.find((s) => s.frontmatter.name === skillName);
+
+  if (!skill) return prompt;
+
+  return skill.body.trim();
+}
+
 async function main() {
   const { prompt, model, apiKey, baseURL } = getConfig();
   const client = new OpenAI({ apiKey, baseURL });
@@ -54,7 +68,7 @@ async function main() {
 
   const messageLog: ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: prompt },
+    { role: 'user', content: resolveSlashCommand(prompt, skills) },
   ];
 
   while (true) {
